@@ -7,7 +7,12 @@ Tests for the watchlist service, following the patterns in test_collection.py.
 import pytest
 from app import create_app, db
 from models import User, Film, WatchlistEntry
-from services.watchlist_service import add_to_watchlist, get_watchlist
+from services.watchlist_service import (
+    add_to_watchlist,
+    remove_from_watchlist,
+    get_watchlist,
+    NotInWatchlistError,
+)
 from services.collection_service import FilmNotFoundError
 
 
@@ -57,6 +62,35 @@ def test_add_to_watchlist_nonexistent_film_raises(app, sample_user):
 
         with pytest.raises(FilmNotFoundError):
             add_to_watchlist(user_id=sample_user, film_id=fake_film_id)
+
+
+# ── Remove ───────────────────────────────────────────────────────────────────
+
+def test_remove_from_watchlist_deletes_entry(app, sample_user, sample_film):
+    """
+    Removing a film that is on the watchlist should delete the entry
+    from the database and return True.
+    """
+    with app.app_context():
+        add_to_watchlist(user_id=sample_user, film_id=sample_film)
+
+        assert remove_from_watchlist(user_id=sample_user, film_id=sample_film) is True
+
+        remaining = WatchlistEntry.query.filter_by(
+            user_id=sample_user, film_id=sample_film
+        ).count()
+        assert remaining == 0
+
+
+def test_remove_from_watchlist_not_on_list_raises(app, sample_user, sample_film):
+    """
+    Removing a film that is not on the watchlist should raise
+    NotInWatchlistError, mirroring NotInCollectionError in the
+    collection service.
+    """
+    with app.app_context():
+        with pytest.raises(NotInWatchlistError):
+            remove_from_watchlist(user_id=sample_user, film_id=sample_film)
 
 
 # ── get_watchlist sort order ─────────────────────────────────────────────────
